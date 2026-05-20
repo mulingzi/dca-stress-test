@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>定投压力测试器 — 用真实历史数据模拟</title>
+<style>
+  :root{--bg:#0f1117;--card:#1a1d27;--border:#2a2d3a;--text:#e4e4e7;--muted:#8b8d98;--accent:#6c8cff;--green:#34d399;--red:#f87171;--yellow:#fbbf24;--orange:#fb923c;--purple:#a78bfa}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding:16px;max-width:1400px;margin:0 auto}
+  h1{font-size:22px;font-weight:700}
+  .sub{color:var(--muted);font-size:12px;margin:2px 0 16px}
+  .sub a{color:var(--accent);text-decoration:none}
+
+  /* Layout */
+  .grid{display:grid;grid-template-columns:360px 1fr;gap:16px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+
+  /* Panels */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .card+.card{margin-top:12px}
+  .step-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;margin-right:6px}
+  .card-title{font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;color:var(--text)}
+
+  /* Forms */
+  .fg{margin-bottom:12px}
+  .fg label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .fg input,.fg select{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border .15s}
+  .fg input:focus,.fg select:focus{border-color:var(--accent)}
+  .fr{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .help{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.3}
+  .auto-calc{font-size:13px;font-weight:600;padding:8px 12px;border-radius:8px;margin-bottom:12px}
+  .auto-calc.ok{color:var(--green);background:rgba(52,211,153,.08)}
+  .auto-calc.warn{color:var(--yellow);background:rgba(251,191,36,.08)}
+  .auto-calc.bad{color:var(--red);background:rgba(248,113,113,.08)}
+
+  /* Crash cards */
+  .crash-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .crash-card{background:var(--bg);border:2px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;transition:all .15s}
+  .crash-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .crash-card.active{border-color:var(--accent);background:rgba(108,140,255,.06)}
+  .crash-card h4{font-size:13px;margin-bottom:2px;display:flex;align-items:center;gap:4px}
+  .crash-card .pct{font-size:22px;font-weight:800;color:var(--red);line-height:1.2}
+  .crash-card .info{font-size:10px;color:var(--muted);line-height:1.3;margin-top:2px}
+  .badge{display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700}
+  .badge-r{background:rgba(248,113,113,.15);color:var(--red)}
+  .badge-g{background:rgba(52,211,153,.15);color:var(--green)}
+  .badge-y{background:rgba(251,191,36,.15);color:var(--yellow)}
+
+  /* Toggle */
+  .toggle-btn{font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;margin-bottom:10px;transition:all .15s}
+  .toggle-btn:hover{color:var(--accent);border-color:var(--accent)}
+  .toggle-content{display:none;padding-top:4px}
+  .toggle-content.open{display:block}
+
+  /* Button */
+  .btn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;transition:all .15s;letter-spacing:.5px}
+  .btn:hover{opacity:.9;transform:translateY(-1px)}
+
+  /* Tabs */
+  .tabs{display:flex;gap:2px;margin-bottom:16px;background:var(--card);border-radius:10px;padding:3px;width:fit-content}
+  .tab{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);border:none;background:none}
+  .tab.active{background:var(--accent);color:#fff}
+  .tab:hover:not(.active){color:var(--text)}
+  .tc{display:none}.tc.active{display:block}
+
+  /* Results */
+  .res{display:none}.res.show{display:block}
+  .headline{text-align:center;padding:20px 16px;margin-bottom:16px;background:var(--bg);border-radius:12px;border:1px solid var(--border)}
+  .headline .big{font-size:28px;font-weight:800;margin:6px 0}
+  .headline .big.pos{color:var(--green)}.headline .big.neg{color:var(--red)}
+  .headline .context{font-size:13px;color:var(--muted);line-height:1.5}
+  .headline .explain{font-size:14px;margin-top:8px;line-height:1.6}
+  .sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px}
+  .sc{background:var(--bg);border-radius:8px;padding:10px;text-align:center}
+  .sl{font-size:10px;color:var(--muted);margin-bottom:1px}
+  .sv{font-size:17px;font-weight:700}
+  .sv.pos{color:var(--green)}.sv.neg{color:var(--red)}.sv.neu{color:var(--yellow)}
+  .ss{font-size:9px;color:var(--muted);margin-top:1px}
+
+  /* Chart */
+  canvas{width:100%;height:280px;margin-bottom:10px}
+
+  /* Table */
+  .tw{max-height:320px;overflow-y:auto;border-radius:8px;border:1px solid var(--border)}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{position:sticky;top:0;background:var(--card);padding:5px 7px;text-align:right;font-weight:600;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)}
+  th:first-child{text-align:left}
+  td{padding:5px 7px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+  td:first-child{text-align:left;color:var(--muted)}
+  tr:hover td{background:rgba(108,140,255,.04)}
+
+  /* Verdict */
+  .verdict{background:var(--bg);border-radius:10px;padding:14px 16px;margin-top:14px;font-size:13px;line-height:1.7;border-left:3px solid var(--accent)}
+  .verdict strong{color:var(--accent)}
+
+  /* Divider */
+  .divider{height:1px;background:var(--border);margin:14px 0}
+  .stitle{font-size:12px;font-weight:600;margin:14px 0 6px;padding-top:10px;border-top:1px solid var(--border)}
+
+  /* Compare */
+  .compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin:14px 0}
+  .compare-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px}
+  .compare-card.best{border-color:var(--green)}
+  .compare-card h4{font-size:14px;margin-bottom:8px}
+  .cr{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+  .cr .l{color:var(--muted)}
+
+  /* Goal */
+  .goal-bar-wrap{margin-bottom:10px}
+  .goal-label{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:3px}
+  .goal-bar{height:8px;background:rgba(108,140,255,.12);border-radius:4px;overflow:hidden}
+  .goal-fill{height:100%;background:var(--accent);border-radius:4px;transition:width .5s}
+  .goal-fill.done{background:var(--green)}
+
+  .tw::-webkit-scrollbar{width:5px}.tw::-webkit-scrollbar-track{background:var(--bg)}.tw::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+  /* Dip-buy explainer */
+  .dip-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-bottom:6px}
+  .dip-toggle input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+  .dip-explainer{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;padding:10px 12px;background:rgba(108,140,255,.04);border-radius:8px;border:1px solid rgba(108,140,255,.1)}
+  .dip-explainer b{color:var(--text)}
+  .dip-example{font-size:12px;line-height:1.6;padding:10px 12px;background:rgba(52,211,153,.04);border-radius:8px;border:1px solid rgba(52,211,153,.15);margin-top:8px;color:var(--text)}
+  .dip-example .num{color:var(--yellow);font-weight:700}
+  .dip-fields{display:none;margin-top:8px}
+  .dip-fields.open{display:block}
+
+  /* Tier table */
+  .tier-table{margin:8px 0}
+  .tier-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;padding:5px 0}
+  .tier-hdr{font-size:10px;color:var(--muted);padding:2px 0 4px}
+  .tier-label{font-size:12px;display:flex;align-items:center;gap:5px}
+  .tier-pct{font-weight:800;font-size:14px;min-width:36px}
+  .tier-desc{font-size:10px;color:var(--muted)}
+  .tier-row input{width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;text-align:right;outline:none}
+  .tier-row input:focus{border-color:var(--accent)}
+</style>
+</head>
+<body>
+<h1>定投压力测试器</h1>
+<p class="sub">假设你在历史最高点开始定投，结果会怎样？用纳斯达克100真实数据告诉你答案。<br>数据来源：Yahoo Finance 月度收盘价 (2000–2026) · 本工具仅为历史回测模拟，不构成任何投资建议</p>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('main',this)">压力测试</button>
+  <button class="tab" onclick="switchTab('compare',this)">四次崩盘对比</button>
+  <button class="tab" onclick="switchTab('goal',this)">目标规划</button>
+</div>
+
+<!-- ═══ TAB 1: 主测试 ═══ -->
+<div class="tc active" id="tab-main">
+<div class="grid">
+<div>
+  <!-- Step 1 -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">1</span> 你每个月能投多少钱？</div>
+    <div class="fr">
+      <div class="fg">
+        <label>月收入（到手）</label>
+        <input type="number" id="inc" value="15000" step="1000">
+        <div class="help">扣完五险一金，到银行卡的数</div>
+      </div>
+      <div class="fg">
+        <label>月支出</label>
+        <input type="number" id="exp" value="6000" step="500">
+        <div class="help">房租+吃饭+交通等固定支出</div>
+      </div>
+    </div>
+    <div id="autoCalc1" class="auto-calc ok"></div>
+    <div class="fg">
+      <label>每月定投金额</label>
+      <input type="number" id="dca" value="3000" step="1000">
+      <div class="help">建议不超过月剩余的 50%，留够生活弹性</div>
+    </div>
+    <div id="autoCalc2" class="auto-calc ok"></div>
+  </div>
+
+  <!-- Step 2: 存款分配 -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">2</span> 手头有存款吗？（可选）</div>
+    <div class="dip-explainer" style="margin-bottom:10px;">
+      很多人不是从零开始，而是手头有一笔存款想投资。聪明的做法是把钱分成<b>三份</b>：<br><br>
+      <b>🏦 安全垫</b> — 放银行绝对不动，生病失业也不慌<br>
+      <b>💰 先投一笔</b> — 马上买入，越早进场越早开始赚复利<br>
+      <b>🎯 子弹钱</b> — 留着等大跌时"抄底加仓"，趁便宜多买
+    </div>
+    <div class="fg">
+      <label>🏦 银行安全垫（元）</label>
+      <input type="number" id="safety" value="50000" step="10000" oninput="updateSavingsSummary()">
+      <div class="help" id="safetyHelp">建议 ≥ 6 个月支出，够你半年不工作也能生活</div>
+    </div>
+    <div class="fg">
+      <label>💰 先投入多少（元）</label>
+      <input type="number" id="initCap" value="0" step="10000" oninput="updateSavingsSummary()">
+      <div class="help">手头存款里拿出来马上买入的部分。0 = 纯靠每月定投，不提前投</div>
+    </div>
+    <div class="divider"></div>
+    <label class="dip-toggle"><input type="checkbox" id="dipOn" onchange="toggleDip();updateSavingsSummary()"><span>🎯 留子弹等大跌时分级加仓</span></label>
+    <div class="dip-explainer">
+      <b>什么是分级加仓？</b> 市场不会一天跌到底，而是慢慢下跌。分级加仓就是<b>跌得越多，额外买入越多</b>：<br><br>
+      小跌（-5%）→ 小额加仓试探<br>
+      中跌（-10%）→ 适度加仓<br>
+      大跌（-20%）→ 大额加仓，真正的打折区<br>
+      暴跌（-30%）→ 重仓加仓，历史级抄底机会<br><br>
+      就像超市：<b>打8折多买一点，打5折多买很多，打3折直接囤满</b>。
+    </div>
+    <div class="dip-fields" id="dipFields">
+      <button class="btn" style="background:var(--yellow);color:#000;font-size:13px;padding:8px;margin:0 0 12px;letter-spacing:0" onclick="autoRecommendDip()">一键智能推荐（根据你的定投金额计算）</button>
+      <div id="dipRecBox" class="dip-example" style="display:none;border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.04);margin-bottom:10px"></div>
+      <div class="tier-table">
+        <div class="tier-row tier-hdr"><span>账户亏了多少</span><span style="text-align:right">那个月额外投多少（元）</span></div>
+        <div class="tier-row">
+          <div class="tier-label"><span class="tier-pct" style="color:var(--yellow)">-5%</span><span class="tier-desc">小跌试探</span></div>
+          <input type="number" id="t1" value="0" step="1000" oninput="updateDipExample();updateSavingsSummary()">
+        </div>
+        <div class="tier-row">
+          <div class="tier-label"><span class="tier-pct" style="color:var(--orange)">-10%</span><span class="tier-desc">回调加仓</span></div>
+          <input type="number" id="t2" value="0" step="1000" oninput="updateDipExample();updateSavingsSummary()">
+        </div>
+        <div class="tier-row">
+          <div class="tier-label"><span class="tier-pct" style="color:var(--red)">-20%</span><span class="tier-desc">熊市重仓</span></div>
+          <input type="number" id="t3" value="0" step="5000" oninput="updateDipExample();updateSavingsSummary()">
+        </div>
+        <div class="tier-row">
+          <div class="tier-label"><span class="tier-pct" style="color:var(--red)">-30%</span><span class="tier-desc">暴跌抄底</span></div>
+          <input type="number" id="t4" value="0" step="5000" oninput="updateDipExample();updateSavingsSummary()">
+        </div>
+      </div>
+      <div class="fg">
+        <label>子弹钱总共多少（元）</label>
+        <input type="number" id="dipBgt" value="0" step="10000" oninput="updateDipExample();updateSavingsSummary()">
+        <div class="help">所有级别的加仓加起来，最多花这么多</div>
+      </div>
+      <div class="dip-example" id="dipExample"></div>
+    </div>
+    <div id="savingsSummary" class="auto-calc ok" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">3</span> 选一个历史崩盘来测试</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:8px;">假设你在崩盘前最高点那天开始定投（运气最差的情况）</p>
+    <div class="crash-grid" id="crashCards"></div>
+  </div>
+
+  <!-- Step 4: 定投年限 + 开始 -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">4</span> 定投几年？</div>
+    <div class="fg">
+      <select id="dcaYears" style="font-size:15px;padding:10px;">
+        <option value="0">跟随历史走完全程（推荐）</option>
+        <option value="3">只投 3 年</option>
+        <option value="5">只投 5 年</option>
+        <option value="10">投 10 年</option>
+        <option value="20">投 20 年</option>
+      </select>
+      <div class="help">"跟随历史走完全程"会用完该崩盘时段的全部真实数据</div>
+    </div>
+
+    <button class="toggle-btn" onclick="toggleAdv()">高级设置 ▸</button>
+    <div class="toggle-content" id="advPanel">
+      <div class="fg"><label>年收入增长率 %</label><input type="number" id="incGrow" value="0" step="1"><div class="help">每年涨薪后，定投金额跟着涨。0 = 固定不变</div></div>
+    </div>
+
+    <button class="btn" onclick="runMain()">开始压力测试</button>
+  </div>
+</div>
+
+<!-- Results -->
+<div>
+  <div class="card res" id="mainRes">
+    <div class="headline" id="mainHeadline"></div>
+    <div class="sg" id="mainStats"></div>
+    <canvas id="mainChart"></canvas>
+    <button class="toggle-btn" onclick="toggleTable()">查看逐月明细 ▸</button>
+    <div class="toggle-content" id="tablePanel">
+      <div class="tw"><table id="mainTable"><thead><tr>
+        <th>日期</th><th>纳指100</th><th>本月投入</th><th>累计投入</th><th>持仓市值</th><th>平均成本</th><th>浮盈亏</th><th>收益率</th><th id="thBullet" style="display:none">剩余子弹</th>
+      </tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="verdict" id="mainVerdict"></div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═══ TAB 2: 四次崩盘对比 ═══ -->
+<div class="tc" id="tab-compare">
+<div class="card">
+  <div class="card-title">四次历史崩盘，用你的定投计划同时模拟</div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">每次都假设你在最高点开始定投（最差运气），看看不同级别的崩盘对你影响多大。</p>
+  <button class="btn" onclick="runCompare()" style="max-width:260px;">生成对比</button>
+  <div id="compRes"></div>
+</div>
+</div>
+
+<!-- ═══ TAB 3: 目标规划 ═══ -->
+<div class="tc" id="tab-goal">
+<div class="grid">
+<div>
+  <div class="card">
+    <div class="card-title">设定你的财务目标</div>
+    <div class="fg"><label>目标 1 (万元)</label><input type="number" id="g1" value="100" step="10"><div class="help">比如 100 万，第一个里程碑</div></div>
+    <div class="fg"><label>目标 2 (万元)</label><input type="number" id="g2" value="300" step="50"><div class="help">比如 300 万，中期目标</div></div>
+    <div class="fg"><label>目标 3 (万元)</label><input type="number" id="g3" value="500" step="50"><div class="help">比如 500 万，长期目标</div></div>
+    <div class="fr">
+      <div class="fg"><label>预期年化收益 %</label><input type="number" id="gRet" value="10" step="1"><div class="help">纳指100历史年化约14%（过往业绩不代表未来表现）</div></div>
+      <div class="fg"><label>当前年龄</label><input type="number" id="age" value="28"></div>
+    </div>
+    <div class="fg"><label>计划投到几岁</label><input type="number" id="retireAge" value="50"></div>
+    <button class="btn" onclick="runGoal()">计算目标路径</button>
+  </div>
+</div>
+<div>
+  <div class="card res" id="goalRes">
+    <div class="card-title">目标达成预测</div>
+    <div id="goalBars"></div>
+    <canvas id="goalChart" style="height:300px"></canvas>
+    <div id="goalTable"></div>
+    <div class="verdict" id="goalVerdict"></div>
+  </div>
+</div>
+</div>
+</div>
+
+<div style="margin-top:32px;padding:14px 16px;background:var(--card);border-radius:10px;border:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.7">
+  <b style="color:var(--text)">免责声明</b><br>
+  本工具仅供学习和研究用途，所有模拟结果基于纳斯达克100指数历史月度收盘价，不代表任何特定基金或ETF的实际表现。过往业绩不代表未来表现，市场有风险，投资需谨慎。本工具不构成任何投资建议、推荐或招揽。使用者应根据自身财务状况和风险承受能力独立做出投资决策。作者不对使用本工具产生的任何投资损失承担责任。
+</div>
+
+<script>
+// ═══ REAL NASDAQ 100 MONTHLY DATA (Yahoo Finance) ═══
+const NDX={"2000-01":3570,"2000-02":4267,"2000-03":4398,"2000-04":3773,"2000-05":3324,"2000-06":3764,"2000-07":3609,"2000-08":4078,"2000-09":3571,"2000-10":3282,"2000-11":2507,"2000-12":2342,"2001-01":2593,"2001-02":1908,"2001-03":1573,"2001-04":1855,"2001-05":1800,"2001-06":1830,"2001-07":1684,"2001-08":1470,"2001-09":1168,"2001-10":1365,"2001-11":1596,"2001-12":1577,"2002-01":1550,"2002-02":1359,"2002-03":1453,"2002-04":1277,"2002-05":1208,"2002-06":1051,"2002-07":962,"2002-08":942,"2002-09":833,"2002-10":990,"2002-11":1116,"2002-12":984,"2003-01":983,"2003-02":1010,"2003-03":1019,"2003-04":1106,"2003-05":1198,"2003-06":1202,"2003-07":1277,"2003-08":1341,"2003-09":1304,"2003-10":1416,"2003-11":1424,"2003-12":1468,"2004-01":1493,"2004-02":1470,"2004-03":1438,"2004-04":1401,"2004-05":1466,"2004-06":1517,"2004-07":1400,"2004-08":1369,"2004-09":1413,"2004-10":1487,"2004-11":1572,"2004-12":1621,"2005-01":1520,"2005-02":1511,"2005-03":1483,"2005-04":1421,"2005-05":1543,"2005-06":1494,"2005-07":1605,"2005-08":1582,"2005-09":1602,"2005-10":1579,"2005-11":1673,"2005-12":1645,"2006-01":1725,"2006-02":1690,"2006-03":1720,"2006-04":1714,"2006-05":1631,"2006-06":1575,"2006-07":1541,"2006-08":1609,"2006-09":1645,"2006-10":1756,"2006-11":1793,"2006-12":1756,"2007-01":1792,"2007-02":1762,"2007-03":1772,"2007-04":1868,"2007-05":1928,"2007-06":1934,"2007-07":1932,"2007-08":1989,"2007-09":2091,"2007-10":2239,"2007-11":2089,"2007-12":2085,"2008-01":1841,"2008-02":1745,"2008-03":1782,"2008-04":1918,"2008-05":2033,"2008-06":1837,"2008-07":1849,"2008-08":1873,"2008-09":1595,"2008-10":1335,"2008-11":1186,"2008-12":1212,"2009-01":1180,"2009-02":1117,"2009-03":1237,"2009-04":1394,"2009-05":1436,"2009-06":1477,"2009-07":1603,"2009-08":1625,"2009-09":1719,"2009-10":1667,"2009-11":1767,"2009-12":1860,"2010-01":1741,"2010-02":1819,"2010-03":1958,"2010-04":2001,"2010-05":1852,"2010-06":1739,"2010-07":1864,"2010-08":1767,"2010-09":1998,"2010-10":2124,"2010-11":2117,"2010-12":2218,"2011-01":2282,"2011-02":2351,"2011-03":2339,"2011-04":2404,"2011-05":2373,"2011-06":2325,"2011-07":2363,"2011-08":2241,"2011-09":2139,"2011-10":2360,"2011-11":2295,"2011-12":2278,"2012-01":2468,"2012-02":2623,"2012-03":2755,"2012-04":2724,"2012-05":2525,"2012-06":2616,"2012-07":2643,"2012-08":2772,"2012-09":2799,"2012-10":2648,"2012-11":2678,"2012-12":2661,"2019-01":6907,"2019-02":7098,"2019-03":7379,"2019-04":7781,"2019-05":7128,"2019-06":7671,"2019-07":7849,"2019-08":7691,"2019-09":7749,"2019-10":8084,"2019-11":8404,"2019-12":8733,"2020-01":8992,"2020-02":8462,"2020-03":7814,"2020-04":9001,"2020-05":9556,"2020-06":10157,"2020-07":10906,"2020-08":12111,"2020-09":11418,"2020-10":11053,"2020-11":12268,"2020-12":12888,"2021-01":12925,"2021-02":12909,"2021-03":13091,"2021-04":13861,"2021-05":13687,"2021-06":14555,"2021-07":14960,"2021-08":15583,"2021-09":14690,"2021-10":15850,"2021-11":16136,"2021-12":16320,"2022-01":14930,"2022-02":14238,"2022-03":14838,"2022-04":12855,"2022-05":12642,"2022-06":11504,"2022-07":12948,"2022-08":12272,"2022-09":10971,"2022-10":11406,"2022-11":12030,"2022-12":10940,"2023-01":12102,"2023-02":12042,"2023-03":13181,"2023-04":13246,"2023-05":14254,"2023-06":15179,"2023-07":15757,"2023-08":15501,"2023-09":14715,"2023-10":14410,"2023-11":15948,"2023-12":16826,"2024-01":17137,"2024-02":18044,"2024-03":18255,"2024-04":17441,"2024-05":18537,"2024-06":19683,"2024-07":19362,"2024-08":19575,"2024-09":20061,"2024-10":19890,"2024-11":20930,"2024-12":21012,"2025-01":21478,"2025-02":20884,"2025-03":19278,"2025-04":19571,"2025-05":21341,"2025-06":22679,"2025-07":23218,"2025-08":23415,"2025-09":24680,"2025-10":25858,"2025-11":25435,"2025-12":25250,"2026-01":25552,"2026-02":24960,"2026-03":23740,"2026-04":27452,"2026-05":28819};
+
+const CRASHES=[
+  {id:'dotcom',name:'互联网泡沫',start:'2000-03',end:'2005-12',
+   desc:'纳斯达克暴跌 81%，大量公司倒闭。史上最惨的一次。',
+   detail:'2000年互联网泡沫破灭，指数从4398暴跌到833。如果你在最高点买了1万块，最低时只剩1900块。',
+   tag:'史上最惨',tagCls:'badge-r'},
+  {id:'gfc',name:'全球金融危机',start:'2007-10',end:'2012-12',
+   desc:'雷曼倒闭，全球经济停摆。跌幅 50%。',
+   detail:'2008年次贷危机引发全球金融海啸，纳指100从2239跌到1117。几乎所有资产同时下跌。',
+   tag:'系统性危机',tagCls:'badge-r'},
+  {id:'covid',name:'新冠+2022加息',start:'2020-02',end:'2024-12',
+   desc:'先遇新冠暴跌，再经历2022年暴力加息。',
+   detail:'2020年新冠恐慌后V型反弹，但2022年美联储暴力加息又把科技股打下来。双重考验。',
+   tag:'双重考验',tagCls:'badge-y'},
+  {id:'rate',name:'2022加息周期',start:'2021-12',end:'2026-05',
+   desc:'美联储从0加息到5.5%，科技股跌33%。最贴近当下。',
+   detail:'从2021年底高点开始，美联储暴力加息导致科技股估值大幅压缩。这是离你最近的一次崩盘。',
+   tag:'最贴近现在',tagCls:'badge-y'}
+];
+
+let selectedCrash='rate';
+
+// ═══ Helpers ═══
+function N(id){return Number(document.getElementById(id).value)||0;}
+function fW(n){return(n/10000).toFixed(1)+'万';}
+function fE(n){return n.toLocaleString('zh-CN')+'元';}
+
+function getSlice(s,e){
+  const k=Object.keys(NDX).sort();
+  const si=k.indexOf(s),ei=k.indexOf(e);
+  if(si<0||ei<0)return[];
+  return k.slice(si,ei+1).map(k=>({date:k,price:NDX[k]}));
+}
+
+// ═══ UI Utils ═══
+function switchTab(id,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tc').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+}
+function toggleAdv(){
+  const p=document.getElementById('advPanel');
+  p.classList.toggle('open');
+  event.target.textContent=p.classList.contains('open')?'高级设置 ▾':'高级设置 ▸';
+}
+function toggleDip(){
+  const on=document.getElementById('dipOn').checked;
+  document.getElementById('dipFields').classList.toggle('open',on);
+  if(on)updateDipExample();
+}
+function getDipTiers(){
+  if(!document.getElementById('dipOn').checked)return[];
+  const THRESHOLDS=[5,10,20,30];
+  const tiers=[];
+  for(let i=0;i<4;i++){
+    const amt=Number(document.getElementById('t'+(i+1)).value)||0;
+    if(amt>0)tiers.push({th:THRESHOLDS[i],amt});
+  }
+  tiers.sort((a,b)=>b.th-a.th);
+  return tiers;
+}
+function autoRecommendDip(){
+  const dca=N('dca');
+  if(dca<=0){alert('请先填写每月定投金额');return;}
+  const r1=Math.round(dca*0.5/1000)*1000||1000;
+  const r2=Math.round(dca*1.0/1000)*1000||1000;
+  const r3=Math.round(dca*1.5/5000)*5000||5000;
+  const r4=Math.round(dca*2.5/5000)*5000||5000;
+  const recBgt=Math.round((r1*2+r2*2+r3*3+r4*2)/10000)*10000||50000;
+  document.getElementById('t1').value=r1;
+  document.getElementById('t2').value=r2;
+  document.getElementById('t3').value=r3;
+  document.getElementById('t4').value=r4;
+  document.getElementById('dipBgt').value=recBgt;
+  const box=document.getElementById('dipRecBox');
+  box.style.display='block';
+  box.innerHTML=
+    `<b>已根据月定投 ${fE(dca)} 智能计算：</b><br><br>`+
+    `<span style="color:var(--yellow)">跌 5%</span> → 加 <b>${fE(r1)}</b>（0.5倍月定投，小跌试水）<br>`+
+    `<span style="color:var(--orange)">跌 10%</span> → 加 <b>${fE(r2)}</b>（1倍月定投，正式加仓）<br>`+
+    `<span style="color:var(--red)">跌 20%</span> → 加 <b>${fE(r3)}</b>（1.5倍月定投，熊市重仓）<br>`+
+    `<span style="color:var(--red)">跌 30%</span> → 加 <b>${fE(r4)}</b>（2.5倍月定投，暴跌抄底）<br><br>`+
+    `<b>子弹总量：${fE(recBgt)}</b><br>`+
+    `<span style="color:var(--muted)">公式：按历史大崩盘中各级别触发次数估算（-5%约2次、-10%约2次、-20%约3次、-30%约2次），确保子弹够用。跌得越深买得越多，在最便宜的时候仓位最重。</span>`;
+  updateDipExample();updateSavingsSummary();
+}
+function updateDipExample(){
+  const dca=N('dca'),bgt=N('dipBgt');
+  const tiers=getDipTiers();
+  if(!tiers.length){document.getElementById('dipExample').innerHTML='';return;}
+  let lines=tiers.sort((a,b)=>a.th-b.th).map(t=>
+    `账户亏 <span class="num">${t.th}%</span> → 那个月多投 <span class="num">${fE(t.amt)}</span>（当月总投 ${fE(dca+t.amt)}）`
+  ).join('<br>');
+  document.getElementById('dipExample').innerHTML=
+    `<b>你的加仓阶梯：</b><br>${lines}<br><br>`+
+    `子弹钱一共 <span class="num">${fE(bgt)}</span>，每个月只触发最高匹配的那一级。用完就恢复正常定投。`+
+    `<br><span style="color:var(--muted);font-size:11px">💡 比如某月亏了25%，会触发-20%那档（不是三档叠加）。</span>`;
+}
+function updateSavingsSummary(){
+  const saf=N('safety'),init=N('initCap'),dipOn=document.getElementById('dipOn').checked,
+    bgt=dipOn?N('dipBgt'):0;
+  const total=saf+init+bgt;
+  const exp=N('exp'),safMonths=exp>0?(saf/exp):0;
+  document.getElementById('safetyHelp').textContent=
+    exp>0?`建议 ≥ ${fE(exp*6)}（6个月支出），你设了 ${safMonths.toFixed(0)} 个月`:'建议 ≥ 6 个月支出';
+  const el=document.getElementById('savingsSummary');
+  if(total===0){el.textContent='还没有填存款信息，纯靠每月定投也完全可以';el.className='auto-calc ok';return;}
+  let parts=[];
+  if(saf>0)parts.push(`安全垫 ${fW(saf)}`);
+  if(init>0)parts.push(`先投入 ${fW(init)}`);
+  if(bgt>0)parts.push(`子弹钱 ${fW(bgt)}`);
+  el.innerHTML=`<b>你的资金分配：</b>${parts.join(' + ')} = 总共准备 <b>${fW(total)}</b>`+
+    (init>0?`<br><span style="font-size:11px;color:var(--muted)">先投入的 ${fW(init)} 会在第一个月直接买入，之后继续每月定投 ${fW(N('dca'))}</span>`:'');
+  el.className='auto-calc ok';
+}
+function toggleTable(){
+  const p=document.getElementById('tablePanel');
+  p.classList.toggle('open');
+  event.target.textContent=p.classList.contains('open')?'收起逐月明细 ▾':'查看逐月明细 ▸';
+}
+
+// ═══ Auto-calc ═══
+function updateAuto(){
+  const inc=N('inc'),exp=N('exp'),disp=inc-exp,dca=N('dca');
+  const e1=document.getElementById('autoCalc1');
+  e1.textContent=`每月剩余: ${fE(disp)}`;
+  e1.className='auto-calc'+(disp<5000?' bad':disp<15000?' warn':' ok');
+  const ratio=disp>0?(dca/disp*100):100;
+  const e2=document.getElementById('autoCalc2');
+  if(dca>disp){
+    e2.textContent=`定投金额超过了月剩余，建议降低`;
+    e2.className='auto-calc bad';
+  }else if(ratio>50){
+    e2.textContent=`定投占月剩余 ${ratio.toFixed(0)}% — 偏高，大跌时可能想停`;
+    e2.className='auto-calc warn';
+  }else{
+    e2.textContent=`定投占月剩余 ${ratio.toFixed(0)}% — 很合理`;
+    e2.className='auto-calc ok';
+  }
+}
+document.querySelectorAll('#inc,#exp,#dca').forEach(e=>e.addEventListener('input',updateAuto));
+
+// ═══ Crash cards ═══
+function initCards(){
+  document.getElementById('crashCards').innerHTML=CRASHES.map(c=>{
+    const prices=getSlice(c.start,c.end);
+    const peak=prices[0]?.price||0, bot=Math.min(...prices.map(p=>p.price));
+    const drop=((bot-peak)/peak*100).toFixed(0);
+    return`<div class="crash-card${c.id===selectedCrash?' active':''}" onclick="selectCrash('${c.id}',this)">
+      <h4>${c.name} <span class="badge ${c.tagCls}">${c.tag}</span></h4>
+      <div class="pct">${drop}%</div>
+      <div class="info">${c.desc}</div>
+    </div>`;
+  }).join('');
+}
+function selectCrash(id,el){
+  selectedCrash=id;
+  document.querySelectorAll('.crash-card').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ═══ Core Simulation ═══
+function simReal(prices,monthlyDCA,incGrow,tiers,dipBgt,initialCap){
+  initialCap=initialCap||0;
+  let inv=initialCap,sh=initialCap>0?initialCap/prices[0].price:0;
+  let dipSpent=0,dipCnt=0,maxLP=0,maxLA=0,maxLM=0,beM=-1;
+  const tierHits={};tiers.forEach(t=>tierHits[t.th]=0);
+  let curDCA=monthlyDCA;
+  const rows=[];
+  for(let i=0;i<prices.length;i++){
+    if(incGrow>0&&i>0&&i%12===0)curDCA=Math.round(curDCA*(1+incGrow/100));
+    let mi=curDCA,isDip=false,hitTier=0;
+    if(tiers.length>0&&inv>0&&dipSpent<dipBgt){
+      const cv=sh*prices[i].price;
+      const dd=((cv-inv)/inv)*100;
+      for(const t of tiers){
+        if(dd<=-t.th){
+          const extra=Math.min(t.amt,dipBgt-dipSpent);
+          mi+=extra;dipSpent+=extra;dipCnt++;isDip=true;hitTier=t.th;
+          tierHits[t.th]=(tierHits[t.th]||0)+1;
+          break;
+        }
+      }
+    }
+    sh+=mi/prices[i].price;inv+=mi;
+    const pv=sh*prices[i].price,gl=pv-inv,glp=inv>0?(gl/inv)*100:0;
+    if(glp<maxLP){maxLP=glp;maxLA=gl;maxLM=i;}
+    rows.push({date:prices[i].date,price:prices[i].price,mi,inv,pv,ac:inv/sh,gl,glp,curDCA,isDip,hitTier,bulletLeft:dipBgt-dipSpent});
+  }
+  for(let i=maxLM+1;i<rows.length;i++){if(rows[i].glp>=0){beM=i;break;}}
+  return{rows,dipSpent,dipCnt,dipBgt,tierHits,maxLP,maxLA,maxLM,beM};
+}
+
+// ═══ Main stress test ═══
+function runMain(){
+  updateAuto();
+  const crash=CRASHES.find(c=>c.id===selectedCrash);
+  let prices=getSlice(crash.start,crash.end);
+  if(!prices.length)return;
+
+  // 如果用户选了固定年限，截取数据
+  const yrs=N('dcaYears');
+  if(yrs>0){
+    const maxM=yrs*12;
+    if(prices.length>maxM) prices=prices.slice(0,maxM);
+  }
+
+  const dipTiers=getDipTiers(),hasTiers=dipTiers.length>0;
+  const r=simReal(prices,N('dca'),N('incGrow'),dipTiers,N('dipBgt'),N('initCap'));
+  const fin=r.rows[r.rows.length-1];
+  const inc=N('inc'),exp=N('exp');
+  const worst=r.rows[r.maxLM];
+  const lossMonths=Math.abs(r.maxLA/inc);
+  const safM=N('safety')/exp;
+  const peakP=prices[0].price,botP=Math.min(...prices.map(p=>p.price));
+  const lumpDrop=((botP-peakP)/peakP*100);
+
+  document.getElementById('mainRes').classList.add('show');
+
+  // ── Headline ──
+  const hlEl=document.getElementById('mainHeadline');
+  const profitAmt=fin.pv-fin.inv;
+  hlEl.innerHTML=`
+    <div style="font-size:13px;color:var(--muted)">在 <b style="color:var(--text)">${crash.name}</b> 中，从最高点开始定投 ${(prices.length/12).toFixed(1)} 年</div>
+    <div class="big ${fin.glp>=0?'pos':'neg'}">${fin.glp>=0?'赚了':'亏了'} ${fW(Math.abs(profitAmt))}</div>
+    <div class="context">投入 ${fW(fin.inv)} → 变成 <b>${fW(fin.pv)}</b>（${fin.glp>=0?'+':''}${fin.glp.toFixed(1)}%）</div>
+    <div class="explain">
+      最难熬的时刻：<b style="color:var(--red)">${worst.date}</b>，账户浮亏 <b style="color:var(--red)">${fW(r.maxLA)}</b>，相当于 <b style="color:var(--red)">${lossMonths.toFixed(1)} 个月工资</b><br>
+      ${r.beM>=0?'坚持定投到 <b style="color:var(--green)">'+r.rows[r.beM].date+'</b> 回本（'+(r.beM/12).toFixed(1)+'年）':
+        '<span style="color:var(--yellow)">期内尚未回本，需要更长时间</span>'}
+    </div>`;
+
+  // ── Stats ──
+  document.getElementById('mainStats').innerHTML=`
+    <div class="sc"><div class="sl">定投时长</div><div class="sv">${prices.length}个月</div><div class="ss">${(prices.length/12).toFixed(1)}年</div></div>
+    <div class="sc"><div class="sl">累计投入</div><div class="sv">${fW(fin.inv)}</div></div>
+    <div class="sc"><div class="sl">最终市值</div><div class="sv ${fin.glp>=0?'pos':'neg'}">${fW(fin.pv)}</div></div>
+    <div class="sc"><div class="sl">最大浮亏</div><div class="sv neg">${fW(r.maxLA)}</div><div class="ss">${worst.date} · ${r.maxLP.toFixed(1)}%</div></div>
+    <div class="sc"><div class="sl">浮亏=几月工资</div><div class="sv ${lossMonths<=2?'pos':lossMonths<=5?'neu':'neg'}">${lossMonths.toFixed(1)}个月</div><div class="ss">${lossMonths<=2?'完全可控':lossMonths<=5?'可承受':'压力较大'}</div></div>
+    <div class="sc"><div class="sl">一把梭回撤</div><div class="sv neg">${lumpDrop.toFixed(1)}%</div><div class="ss">定投降低了 ${(Math.abs(lumpDrop)-Math.abs(r.maxLP)).toFixed(1)} 个百分点</div></div>
+    ${safM>0?'<div class="sc"><div class="sl">安全垫覆盖</div><div class="sv '+(safM>=12?'pos':'neu')+'">'+safM.toFixed(0)+'个月</div><div class="ss">即使不工作也够花</div></div>':''}
+    ${r.beM>=0?'<div class="sc"><div class="sl">回本时间</div><div class="sv neu">'+r.rows[r.beM].date+'</div><div class="ss">'+(r.beM/12).toFixed(1)+'年</div></div>':''}
+    ${r.dipCnt>0?'<div class="sc"><div class="sl">加仓触发</div><div class="sv" style="color:var(--yellow)">'+r.dipCnt+'次</div><div class="ss">'+Object.entries(r.tierHits).filter(([,v])=>v>0).map(([k,v])=>'-'+k+'%:'+v+'次').join(' · ')+'</div></div>':''}
+    ${hasTiers?'<div class="sc"><div class="sl">子弹余额</div><div class="sv '+(r.dipBgt-r.dipSpent>0?'pos':'neg')+'">'+(r.dipBgt-r.dipSpent>0?fW(r.dipBgt-r.dipSpent):'已打光')+'</div><div class="ss">总共 '+fW(r.dipBgt)+(r.dipCnt>0?' · 用了 '+fW(r.dipSpent):' · 未动用')+'</div></div>':''}
+  `;
+
+  // ── Chart ──
+  drawLine(r.rows,'mainChart');
+
+  // ── Table ──
+  const hasDip=hasTiers;
+  document.getElementById('thBullet').style.display=hasDip?'':'none';
+  const tb=document.querySelector('#mainTable tbody');tb.innerHTML='';
+  for(const row of r.rows){
+    const tr=document.createElement('tr');
+    const c=row.glp>=0?'color:var(--green)':'color:var(--red)';
+    const w=r.rows.indexOf(row)===r.maxLM;
+    tr.innerHTML=`<td>${w?'★ ':''}${row.isDip?'🎯 ':''}${row.date}</td><td>${row.price}</td>
+      <td>${row.isDip?'<span style="color:var(--yellow)"><b>'+fW(row.mi)+'</b> (-'+row.hitTier+'%)</span>':fW(row.mi)}</td>
+      <td>${fW(row.inv)}</td><td>${fW(row.pv)}</td><td>${row.ac.toFixed(0)}</td>
+      <td style="${c}">${fW(row.gl)}</td><td style="${c}">${row.glp.toFixed(1)}%</td>`+
+      (hasDip?`<td style="color:${row.bulletLeft>0?'var(--yellow)':'var(--red)'}${row.isDip?';font-weight:700':''}">${row.bulletLeft>0?fW(row.bulletLeft):'已打光'}</td>`:'');
+    if(w)tr.style.background='rgba(248,113,113,.06)';
+    if(row.isDip)tr.style.background='rgba(251,191,36,.06)';
+    tb.appendChild(tr);
+  }
+
+  // ── Verdict ──
+  const absL=Math.abs(r.maxLA);
+  let lvl,adv;
+  if(absL/inc<=2){lvl='轻松';adv='这种跌幅对你完全没影响，定投继续就好。';}
+  else if(absL/inc<=4){lvl='可控';adv='会有点不舒服，但完全不影响生活。关键是别盯盘。';}
+  else if(absL/inc<=8){lvl='有压力';adv='会比较煎熬，但只要不卖就没真正亏损。提前做好心理准备，把手机同花顺的通知关掉。';}
+  else{lvl='高压';adv='浮亏金额较大，建议降低月定投额或先攒更多安全垫，确保跌到底你也不会被迫卖出。';}
+
+  document.getElementById('mainVerdict').innerHTML=
+    `<strong>压力评级：${lvl}</strong><br><br>`+
+    `<b>用人话说：</b>${crash.detail}<br><br>`+
+    `如果你在最高点 ${crash.start} 开始每月投 ${fW(N('dca'))}，最难熬是 <b>${worst.date}</b>，账面上亏了 <b>${fW(r.maxLA)}</b>。`+
+    `但你的平均买入成本只有 ${worst.ac.toFixed(0)}（而不是最高点的 ${peakP}），因为定投在低位帮你买了更多便宜筹码。`+
+    (r.beM>=0?`<br><br>坚持到 <b>${r.rows[r.beM].date}</b> 就回本了，之后开始赚钱。`:'')+
+    `<br><br>对比"一把梭"（在最高点一次性全投）：同样的崩盘，一把梭最多亏 ${lumpDrop.toFixed(0)}%，定投只亏 ${r.maxLP.toFixed(0)}%。<b>定投少承受了 ${(Math.abs(lumpDrop)-Math.abs(r.maxLP)).toFixed(0)} 个百分点的痛苦。</b>`+
+    (r.dipCnt>0?`<br><br><b style="color:var(--yellow)">分级加仓发挥了作用：</b>触发了 <b>${r.dipCnt} 次</b>（${Object.entries(r.tierHits).filter(([,v])=>v>0).map(([k,v])=>'-'+k+'%档'+v+'次').join('、')}），额外投入 ${fW(r.dipSpent)}。跌得越深买得越多，在最便宜的时候仓位最重。`+
+      (r.dipBgt-r.dipSpent>0?` 子弹还剩 ${fW(r.dipBgt-r.dipSpent)}。`:'子弹已全部打光。')
+    :(hasTiers?`<br><br><b style="color:var(--muted)">加仓未触发：</b>这轮下跌中，定投账户浮亏最多 ${Math.abs(r.maxLP).toFixed(0)}%，没触发你设的任何加仓档位。说明这个跌幅对定投来说还好——好消息！`:''))+
+    `<br><br>${adv}`;
+}
+
+// ═══ Compare ═══
+function runCompare(){
+  const dca=N('dca'),ig=N('incGrow'),dt=getDipTiers(),db=N('dipBgt'),ic=N('initCap'),inc=N('inc');
+  let html='<div class="compare-grid">';
+  const results=CRASHES.map(c=>{
+    const prices=getSlice(c.start,c.end);
+    const r=simReal(prices,dca,ig,dt,db,ic);
+    const fin=r.rows[r.rows.length-1];
+    const botP=Math.min(...prices.map(p=>p.price));
+    const lumpDrop=((botP-prices[0].price)/prices[0].price*100);
+    return{c,r,fin,lumpDrop,prices};
+  });
+  let bestI=0,bestG=-Infinity;
+  results.forEach(({fin},i)=>{if(fin.glp>bestG){bestG=fin.glp;bestI=i;}});
+
+  results.forEach(({c,r,fin,lumpDrop},i)=>{
+    const lm=Math.abs(r.maxLA/inc);
+    const worst=r.rows[r.maxLM];
+    html+=`<div class="compare-card${i===bestI?' best':''}">
+      <h4>${c.name} <span class="badge ${c.tagCls}">${c.tag}</span></h4>
+      <div class="cr"><span class="l">定投时长</span><span>${r.rows.length}月 (${(r.rows.length/12).toFixed(1)}年)</span></div>
+      <div class="cr"><span class="l">累计投入</span><span>${fW(fin.inv)}</span></div>
+      <div class="cr"><span class="l">最终结果</span><span style="color:${fin.glp>=0?'var(--green)':'var(--red)'}"><b>${fW(fin.pv)}</b> (${fin.glp>=0?'+':''}${fin.glp.toFixed(1)}%)</span></div>
+      <div class="cr"><span class="l">最大浮亏</span><span style="color:var(--red)">${fW(r.maxLA)} (${r.maxLP.toFixed(1)}%)</span></div>
+      <div class="cr"><span class="l">最惨月份</span><span>${worst.date}</span></div>
+      <div class="cr"><span class="l">= 几月工资</span><span>${lm.toFixed(1)}个月</span></div>
+      <div class="cr"><span class="l">回本时间</span><span>${r.beM>=0?r.rows[r.beM].date+' ('+(r.beM/12).toFixed(1)+'年)':'尚未回本'}</span></div>
+      <div class="cr"><span class="l">一把梭回撤</span><span style="color:var(--red)">${lumpDrop.toFixed(1)}%</span></div>
+      <div class="cr"><span class="l">定投少亏了</span><span style="color:var(--green)">${(Math.abs(lumpDrop)-Math.abs(r.maxLP)).toFixed(1)}个百分点</span></div>
+      ${r.dipCnt>0?'<div class="cr"><span class="l">加仓触发</span><span style="color:var(--yellow)">'+r.dipCnt+'次 · '+fW(r.dipSpent)+'</span></div><div class="cr"><span class="l">子弹余额</span><span>'+(r.dipBgt-r.dipSpent>0?fW(r.dipBgt-r.dipSpent):'已打光')+'</span></div>':''}
+    </div>`;
+  });
+  html+='</div>';
+
+  const worst=results[0],best=results[bestI],most=results[3];
+  html+=`<div class="verdict"><strong>总结</strong><br><br>
+    <b>最惨情景（${worst.c.name}）：</b>定投最多亏 ${fW(worst.r.maxLA)}（${worst.r.maxLP.toFixed(0)}%），相当于 ${Math.abs(worst.r.maxLA/inc).toFixed(1)} 个月工资。${worst.r.beM>=0?'坚持'+(worst.r.beM/12).toFixed(1)+'年后回本。':'需要较长时间回本。'}最终收益 ${worst.fin.glp.toFixed(1)}%。
+    <br><br><b>最可能的情景（${most.c.name}）：</b>最多亏 ${fW(most.r.maxLA)}，${most.r.beM>=0?(most.r.beM/12).toFixed(1)+'年回本，':''}最终 ${most.fin.glp>=0?'+':''}${most.fin.glp.toFixed(1)}%。
+    <br><br><b>核心结论：</b>即使运气最差、在最高点开始定投，定投的实际痛感都远低于"一把梭"的恐怖数字。坚持下去，时间会站在你这边。</div>`;
+
+  document.getElementById('compRes').innerHTML=html;
+}
+
+// ═══ Goal ═══
+function runGoal(){
+  document.getElementById('goalRes').classList.add('show');
+  const goals=[N('g1')*1e4,N('g2')*1e4,N('g3')*1e4].filter(g=>g>0);
+  const ar=N('gRet')/100,mr=Math.pow(1+ar,1/12)-1;
+  const ig=N('incGrow')/100;
+  const age=N('age'),maxM=(N('retireAge')-age)*12||240;
+  const initCap=N('initCap')+(N('safety')||0)*0; // 安全垫不算入投资
+  let dca=N('dca'),bal=initCap,inv_=initCap;
+  const tl=[{m:0,bal,inv:inv_,dca}];
+  const gh=goals.map(()=>null);
+  for(let m=1;m<=maxM;m++){
+    if(ig>0&&m>1&&m%12===1)dca=Math.round(dca*(1+ig));
+    bal=bal*(1+mr)+dca;inv_+=dca;
+    tl.push({m,bal,inv:inv_,dca});
+    goals.forEach((g,i)=>{if(!gh[i]&&bal>=g)gh[i]={m,age:age+m/12,bal};});
+  }
+  let bh='';const fin=tl[tl.length-1];
+  goals.forEach((g,i)=>{
+    const pct=Math.min(100,fin.bal/g*100);const d=gh[i];
+    bh+=`<div class="goal-bar-wrap"><div class="goal-label"><span>目标${i+1}: ${fW(g)}</span><span>${d?d.age.toFixed(1)+'岁达成 (第'+(d.m/12).toFixed(1)+'年)':'期内未达成'}</span></div><div class="goal-bar"><div class="goal-fill${d?' done':''}" style="width:${pct}%"></div></div></div>`;
+  });
+  document.getElementById('goalBars').innerHTML=bh;
+
+  drawGoalChart(tl,goals,gh);
+
+  let th='<div class="stitle">关键里程碑</div><div class="tw" style="max-height:200px"><table><thead><tr><th>年份</th><th>年龄</th><th>累计投入</th><th>预计资产</th><th>收益</th><th>月定投</th></tr></thead><tbody>';
+  [1,2,3,5,7,10,12,15,17,20].filter(y=>y*12<tl.length).forEach(y=>{
+    const t=tl[y*12];if(!t)return;const g=t.bal-t.inv;const c=g>=0?'color:var(--green)':'color:var(--red)';
+    th+=`<tr><td>第${y}年</td><td>${age+y}岁</td><td>${fW(t.inv)}</td><td>${fW(t.bal)}</td><td style="${c}">${fW(g)} (${(g/t.inv*100).toFixed(0)}%)</td><td>${fW(t.dca)}</td></tr>`;
+  });
+  th+='</tbody></table></div>';
+  document.getElementById('goalTable').innerHTML=th;
+
+  let vh='<strong>目标达成预测</strong><br><br>';
+  goals.forEach((g,i)=>{const h=gh[i];vh+=h?`目标${i+1} (${fW(g)}): <strong>${h.age.toFixed(1)}岁达成</strong>，定投第${(h.m/12).toFixed(1)}年。<br>`:`目标${i+1} (${fW(g)}): 到${N('retireAge')}岁<strong>未达成</strong>，最终资产 ${fW(fin.bal)}。<br>`;});
+  vh+=`<br>到${N('retireAge')}岁: 累计投入 <strong>${fW(fin.inv)}</strong>，预计资产 <strong>${fW(fin.bal)}</strong>，收益 <strong>${fW(fin.bal-fin.inv)}</strong> (${((fin.bal-fin.inv)/fin.inv*100).toFixed(0)}%)。`;
+  document.getElementById('goalVerdict').innerHTML=vh;
+}
+
+// ═══ Charts ═══
+function drawLine(rows,cid){
+  const canvas=document.getElementById(cid),ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1,rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;ctx.scale(dpr,dpr);
+  const W=rect.width,H=rect.height;ctx.clearRect(0,0,W,H);
+  const pad={top:28,right:16,bottom:36,left:60};
+  const cw=W-pad.left-pad.right,ch=H-pad.top-pad.bottom;
+  const inv=rows.map(r=>r.inv),val=rows.map(r=>r.pv);
+  const all=[...inv,...val];const minV=Math.min(...all)*.9,maxV=Math.max(...all)*1.1;
+  const xS=i=>pad.left+(i/(rows.length-1))*cw;
+  const yS=v=>pad.top+ch-((v-minV)/(maxV-minV))*ch;
+
+  // Grid
+  ctx.strokeStyle='rgba(42,45,58,.8)';ctx.lineWidth=.5;
+  for(let i=0;i<=4;i++){const y=pad.top+(ch/4)*i;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(W-pad.right,y);ctx.stroke();ctx.fillStyle='#8b8d98';ctx.font='11px sans-serif';ctx.textAlign='right';ctx.fillText(fW(maxV-(i/4)*(maxV-minV)),pad.left-6,y+4);}
+  ctx.textAlign='center';const step=Math.max(1,Math.floor(rows.length/8));
+  for(let i=0;i<rows.length;i+=step){ctx.fillStyle='#8b8d98';ctx.fillText(rows[i].date,xS(i),H-pad.bottom+18);}
+
+  // Invested (dashed)
+  ctx.setLineDash([4,3]);ctx.strokeStyle='#8b8d98';ctx.lineWidth=1.5;ctx.beginPath();
+  for(let i=0;i<rows.length;i++){const x=xS(i),y=yS(inv[i]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();ctx.setLineDash([]);
+
+  // Value
+  ctx.strokeStyle='#6c8cff';ctx.lineWidth=2;ctx.beginPath();
+  for(let i=0;i<rows.length;i++){const x=xS(i),y=yS(val[i]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();
+
+  // Fill
+  const grad=ctx.createLinearGradient(0,pad.top,0,pad.top+ch);
+  grad.addColorStop(0,'rgba(108,140,255,.12)');grad.addColorStop(1,'rgba(108,140,255,0)');
+  ctx.fillStyle=grad;ctx.beginPath();ctx.moveTo(xS(0),yS(val[0]));
+  for(let i=1;i<rows.length;i++)ctx.lineTo(xS(i),yS(val[i]));
+  ctx.lineTo(xS(rows.length-1),pad.top+ch);ctx.lineTo(xS(0),pad.top+ch);ctx.closePath();ctx.fill();
+
+  // Loss zone
+  ctx.fillStyle='rgba(248,113,113,.06)';
+  for(let i=1;i<rows.length;i++){if(val[i]<inv[i]){const x1=xS(i-1),x2=xS(i);ctx.beginPath();ctx.moveTo(x1,yS(inv[i-1]));ctx.lineTo(x2,yS(inv[i]));ctx.lineTo(x2,yS(val[i]));ctx.lineTo(x1,yS(val[i-1]));ctx.closePath();ctx.fill();}}
+
+  // Legend
+  ctx.font='12px sans-serif';
+  ctx.fillStyle='#6c8cff';ctx.fillRect(pad.left,12-5,14,3);ctx.fillStyle='#e4e4e7';ctx.textAlign='left';ctx.fillText('持仓市值',pad.left+20,12);
+  ctx.setLineDash([4,3]);ctx.strokeStyle='#8b8d98';ctx.beginPath();ctx.moveTo(pad.left+90,8);ctx.lineTo(pad.left+104,8);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#8b8d98';ctx.fillText('累计投入',pad.left+110,12);
+  ctx.fillStyle='rgba(248,113,113,.25)';ctx.fillRect(pad.left+180,12-7,10,10);ctx.fillStyle='#8b8d98';ctx.fillText('浮亏区间',pad.left+196,12);
+}
+
+function drawGoalChart(tl,goals,gh){
+  const canvas=document.getElementById('goalChart'),ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1,rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;ctx.scale(dpr,dpr);
+  const W=rect.width,H=rect.height;ctx.clearRect(0,0,W,H);
+  const pad={top:28,right:16,bottom:36,left:65};
+  const cw=W-pad.left-pad.right,ch=H-pad.top-pad.bottom;
+  const bals=tl.map(t=>t.bal),invs=tl.map(t=>t.inv);
+  const allV=[...bals,...invs,...goals];const minV=0,maxV=Math.max(...allV)*1.1;
+  const xS=i=>pad.left+(i/(tl.length-1))*cw;const yS=v=>pad.top+ch-((v-minV)/(maxV-minV))*ch;
+  const age=N('age');
+
+  ctx.strokeStyle='rgba(42,45,58,.8)';ctx.lineWidth=.5;
+  for(let i=0;i<=4;i++){const y=pad.top+(ch/4)*i;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(W-pad.right,y);ctx.stroke();ctx.fillStyle='#8b8d98';ctx.font='11px sans-serif';ctx.textAlign='right';ctx.fillText(fW(maxV-(i/4)*(maxV-minV)),pad.left-6,y+4);}
+  ctx.textAlign='center';const step=Math.max(1,Math.floor(tl.length/8));
+  for(let i=0;i<tl.length;i+=step){ctx.fillStyle='#8b8d98';ctx.fillText((age+i/12).toFixed(0)+'岁',xS(i),H-pad.bottom+18);}
+
+  const gc=['#6c8cff','#a78bfa','#34d399'];
+  goals.forEach((g,i)=>{const y=yS(g);ctx.setLineDash([5,3]);ctx.strokeStyle=gc[i];ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(W-pad.right,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=gc[i];ctx.font='11px sans-serif';ctx.textAlign='right';ctx.fillText(fW(g),W-pad.right,y-4);});
+
+  ctx.setLineDash([4,3]);ctx.strokeStyle='#8b8d98';ctx.lineWidth=1.5;ctx.beginPath();
+  for(let i=0;i<tl.length;i++){const x=xS(i),y=yS(invs[i]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle='#6c8cff';ctx.lineWidth=2;ctx.beginPath();
+  for(let i=0;i<tl.length;i++){const x=xS(i),y=yS(bals[i]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();
+  const grad=ctx.createLinearGradient(0,pad.top,0,pad.top+ch);grad.addColorStop(0,'rgba(108,140,255,.12)');grad.addColorStop(1,'rgba(108,140,255,0)');
+  ctx.fillStyle=grad;ctx.beginPath();ctx.moveTo(xS(0),yS(bals[0]));
+  for(let i=1;i<tl.length;i++)ctx.lineTo(xS(i),yS(bals[i]));ctx.lineTo(xS(tl.length-1),pad.top+ch);ctx.lineTo(xS(0),pad.top+ch);ctx.closePath();ctx.fill();
+  ctx.font='11px sans-serif';ctx.fillStyle='#6c8cff';ctx.fillRect(pad.left,12-5,14,3);ctx.fillStyle='#e4e4e7';ctx.textAlign='left';ctx.fillText('预计资产',pad.left+20,12);
+  ctx.setLineDash([4,3]);ctx.strokeStyle='#8b8d98';ctx.beginPath();ctx.moveTo(pad.left+90,8);ctx.lineTo(pad.left+104,8);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#8b8d98';ctx.fillText('累计投入',pad.left+110,12);
+}
+
+// ═══ Init ═══
+window.addEventListener('load',()=>{initCards();updateAuto();setTimeout(runMain,200);});
+window.addEventListener('resize',()=>{if(document.getElementById('mainRes').classList.contains('show'))runMain();});
+</script>
+</body>
+</html>
